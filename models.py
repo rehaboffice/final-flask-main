@@ -14,6 +14,7 @@ class User(db.Model, UserMixin):
     role = db.Column(db.String(20), nullable=False, default='employee')  
     department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=True)
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) 
+    # leave_balance = db.Column(db.Integer, nullable=False, default=20)
     
     profile = db.relationship('EmployeeProfile', backref='user', uselist=False, cascade='all, delete-orphan')
     leave_requests = db.relationship('LeaveRequest', backref='employee', lazy=True, cascade='all, delete-orphan')
