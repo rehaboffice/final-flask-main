@@ -1,20 +1,23 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required, current_user
-from models import db, LeaveRequest
+# from flask_login import login_required, current_user
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from models import db, LeaveRequest, User, EmployeeProfile
 from functools import wraps
 
 manager_bp = Blueprint('manager', __name__)
 
 def manager_required(f):
     @wraps(f)
+    @jwt_required()
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'manager':
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        if not user or user.role != 'manager':
             return jsonify({"error": "Manager access required"}), 403
         return f(*args, **kwargs)
     return decorated_function
 
 @manager_bp.route('/api/manager/leave-requests/<int:request_id>', methods=['PUT'])
-@login_required
 @manager_required
 def manager_update_leave_request(request_id):
     leave_request = LeaveRequest.query.get(request_id)

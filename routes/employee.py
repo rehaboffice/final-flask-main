@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required, current_user
+# from flask_login import login_required, current_user
 from models import db, User, EmployeeProfile, Department, LeaveRequest, Attendance
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
 import csv
@@ -13,22 +14,24 @@ from reportlab.pdfgen import canvas
 employee_bp = Blueprint('employee', __name__)
 
 @employee_bp.route('/api/profile', methods=['GET'])
-@login_required
+@jwt_required()
 def get_profile():
-    profile = current_user.profile
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    profile = user.profile
     
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
     
-    department = Department.query.get(current_user.department_id)
+    department = Department.query.get(user.department_id)
     current_year = datetime.utcnow().year
-    leave_balance = current_user.leave_balance(year=current_year)
+    leave_balance = user.leave_balance(year=current_year)
     
     return jsonify({
         "employee": {
-            "id": current_user.id,
-            "emp_id": current_user.emp_id,
-            "email": current_user.email,
+            "id": user.id,
+            "emp_id": user.emp_id,
+            "email": user.email,
             "department": department.name if department else None,
             "leave_balance": leave_balance,
             "profile": {
@@ -40,20 +43,22 @@ def get_profile():
     }), 200
 
 @employee_bp.route('/api/profile/contact', methods=['PATCH'])
-@login_required
+@jwt_required()
 def update_contact_info():
-    data = request.get_json()
-    profile = current_user.profile
-    
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    profile = user.profile
+
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
-    
+
+    data = request.get_json()
     try:
         if 'contact_email' in data:
             profile.contact_email = data['contact_email']
         if 'phone' in data:
             profile.phone = data['phone']
-        
+
         db.session.commit()
         return jsonify({"message": "Contact information updated successfully"}), 200
     except Exception as e:
@@ -61,34 +66,35 @@ def update_contact_info():
         return jsonify({"error": str(e)}), 500
     
 @employee_bp.route('/api/leave', methods=['POST'])
-@login_required
+@jwt_required()
 def submit_leave_request():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
     data = request.get_json()
-    
-    # Validate required fields
+
     required_fields = ['start_date', 'end_date', 'reason']
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"Missing required field: {field}"}), 400
-    
+
     try:
         start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
         end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-        
+
         if start_date > end_date:
             return jsonify({"error": "Start date cannot be after end date"}), 400
-        
+
         leave_request = LeaveRequest(
-            employee_id=current_user.id,
+            employee_id=user.id,
             start_date=start_date,
             end_date=end_date,
             reason=data['reason'],
             status='pending_manager'
         )
-        
+
         db.session.add(leave_request)
         db.session.commit()
-        
+
         return jsonify({
             "message": "Leave request submitted successfully",
             "id": leave_request.id,
@@ -101,11 +107,13 @@ def submit_leave_request():
         return jsonify({"error": str(e)}), 500
     
 @employee_bp.route('/api/leave', methods=['GET'])
-@login_required
+@jwt_required()
 def get_leave_requests():
-    leave_requests = LeaveRequest.query.filter_by(employee_id=current_user.id).all()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    leave_requests = LeaveRequest.query.filter_by(employee_id=user.id).all()
     request_list = []
-    
+
     for leave in leave_requests:
         request_list.append({
             "id": leave.id,
@@ -114,13 +122,15 @@ def get_leave_requests():
             "reason": leave.reason,
             "status": leave.status
         })
-    
+
     return jsonify({"leave_requests": request_list}), 200
 
 @employee_bp.route('/api/attendance', methods=['GET'])
-@login_required
+@jwt_required()
 def get_self_attendance():
-    attendance_records = Attendance.query.filter_by(user_id=current_user.id).all()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    attendance_records = Attendance.query.filter_by(user_id=user.id).all()
     records = [{
         "date": record.date.strftime('%Y-%m-%d'),
         "status": record.status,
@@ -129,26 +139,27 @@ def get_self_attendance():
     } for record in attendance_records]
 
     return jsonify({
-        "emp_id": current_user.emp_id,
+        "emp_id": user.emp_id,
         "attendance": records
     }), 200
 
 @employee_bp.route('/api/attendance', methods=['POST'])
-@login_required
+@jwt_required()
 def mark_attendance():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
     data = request.get_json()
     today = datetime.utcnow().date()
-    status = data.get('status', 'present')  # default to 'present'
+    status = data.get('status', 'present')
     check_in_time = data.get('check_in_time')
     check_out_time = data.get('check_out_time')
 
-    # Check if already marked for today
-    attendance = Attendance.query.filter_by(user_id=current_user.id, date=today).first()
+    attendance = Attendance.query.filter_by(user_id=user.id, date=today).first()
     if attendance:
         return jsonify({"error": "Attendance already marked for today"}), 400
 
     attendance = Attendance(
-        user_id=current_user.id,
+        user_id=user.id,
         date=today,
         status=status,
         check_in_time=check_in_time,
@@ -158,13 +169,16 @@ def mark_attendance():
     db.session.commit()
     return jsonify({"message": "Attendance marked"}), 201
 
+
 @employee_bp.route('/api/leave-balance', methods=['GET'])
-@login_required
+@jwt_required()
 def get_self_leave_balance():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
     current_year = datetime.utcnow().year
-    leave_balance = current_user.leave_balance(year=current_year)
+    leave_balance = user.leave_balance(year=current_year)
     return jsonify({
-        "emp_id": current_user.emp_id,
+        "emp_id": user.emp_id,
         "leave_balance": leave_balance
     }), 200
 
@@ -208,9 +222,11 @@ def generate_employee_csv(user):
     return output.getvalue()
 
 @employee_bp.route('/api/export-self', methods=['GET'])
-@login_required
+@jwt_required()
 def export_self_data_csv():
-    csv_data = generate_employee_csv(current_user)
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    csv_data = generate_employee_csv(user)
     output = StringIO(csv_data)
     return Response(
         output,
@@ -270,7 +286,9 @@ def generate_employee_pdf(user):
     return buffer
 
 @employee_bp.route('/api/export-self-pdf', methods=['GET'])
-@login_required
+@jwt_required()
 def export_self_data_pdf():
-    pdf_buffer = generate_employee_pdf(current_user)
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    pdf_buffer = generate_employee_pdf(user)
     return send_file(pdf_buffer, as_attachment=True, download_name='employee_data.pdf', mimetype='application/pdf')

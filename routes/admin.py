@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required, current_user
+from flask_jwt_extended import get_jwt_identity, jwt_required
+# from flask_login import login_required, current_user
 from models import db, User, EmployeeProfile, Department, LeaveRequest, Attendance
 from datetime import datetime
 
@@ -15,14 +16,16 @@ admin_bp = Blueprint('admin', __name__)
 
 def admin_required(f):
     @wraps(f)
+    @jwt_required()
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        if not user or user.role != 'admin':
             return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
     return decorated_function
 
 @admin_bp.route('/api/admin/employees', methods=['GET'])
-@login_required
 @admin_required
 def get_all_employees():
     employees = User.query.all()
@@ -55,7 +58,6 @@ def get_all_employees():
     return jsonify({"employees": employee_list}), 200
 
 @admin_bp.route('/api/admin/employees', methods=['POST'])
-@login_required
 @admin_required
 def add_employee():
     data = request.get_json()
@@ -103,7 +105,6 @@ def add_employee():
     
 
 @admin_bp.route('/api/admin/employees/<emp_id>', methods=['PUT'])
-@login_required
 @admin_required
 def update_employee(emp_id):
     data = request.get_json()
@@ -142,7 +143,6 @@ def update_employee(emp_id):
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/admin/departments', methods=['GET'])
-@login_required
 @admin_required
 def get_all_departments():
     departments = Department.query.all()
@@ -159,7 +159,6 @@ def get_all_departments():
     return jsonify({"departments": department_list}), 200
 
 @admin_bp.route('/api/admin/departments', methods=['POST'])
-@login_required
 @admin_required
 def add_department():
     data = request.get_json()
@@ -186,7 +185,6 @@ def add_department():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/admin/leave-requests', methods=['GET'])
-@login_required
 @admin_required
 def get_all_leave_requests():
     leave_requests = LeaveRequest.query.all()
@@ -212,7 +210,6 @@ def get_all_leave_requests():
     return jsonify({"leave_requests": request_list}), 200
 
 @admin_bp.route('/api/admin/leave-requests/<int:request_id>', methods=['PUT'])
-@login_required
 @admin_required
 def update_leave_request(request_id):
     data = request.get_json()
@@ -236,7 +233,6 @@ def update_leave_request(request_id):
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/api/admin/attendance/<emp_id>', methods=['GET'])
-@login_required
 @admin_required
 def get_employee_attendance(emp_id):
     user = User.query.filter_by(emp_id=emp_id).first()
@@ -257,7 +253,6 @@ def get_employee_attendance(emp_id):
     }), 200
 
 @admin_bp.route('/api/admin/attendance', methods=['GET'])
-@login_required
 @admin_required
 def get_all_attendance():
     users = User.query.all()
@@ -277,7 +272,6 @@ def get_all_attendance():
     return jsonify({"all_attendance": all_attendance}), 200
 
 @admin_bp.route('/api/admin/leave-balance/<emp_id>', methods=['GET'])
-@login_required
 @admin_required
 def get_employee_leave_balance(emp_id):
     user = User.query.filter_by(emp_id=emp_id).first()
@@ -292,7 +286,6 @@ def get_employee_leave_balance(emp_id):
 
 
 @admin_bp.route('/api/admin/leave-balances', methods=['GET'])
-@login_required
 @admin_required
 def get_all_leave_balances():
     users = User.query.all()
@@ -396,7 +389,6 @@ def generate_employee_pdf(user):
     return buffer
 
 @admin_bp.route('/api/admin/export-employee', methods=['GET'])
-@login_required
 @admin_required
 def export_employee_data_csv():
     emp_id = request.args.get('emp_id')
@@ -420,7 +412,6 @@ def export_employee_data_csv():
     )
 
 @admin_bp.route('/api/admin/export-employee-pdf', methods=['GET'])
-@login_required
 @admin_required
 def export_employee_data_pdf():
     emp_id = request.args.get('emp_id')
