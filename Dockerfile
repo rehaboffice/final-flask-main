@@ -1,23 +1,22 @@
-# Start your image with a node base image
-FROM node:18-alpine
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim
 
-# The /app directory should act as the main application directory
+# Set the working directory in the container
 WORKDIR /app
 
-# Copy the app package and package-lock.json file
-COPY package*.json ./
+# Copy requirements.txt and install dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy local directories to the current local directory of our docker image (/app)
-COPY ./src ./src
-COPY ./public ./public
+# Copy the rest of the application code
+COPY . .
 
-# Install node packages, install serve, build the app, and remove dependencies at the end
-RUN npm install \
-    && npm install -g serve \
-    && npm run build \
-    && rm -fr node_modules
+# Expose the port Flask runs on
+EXPOSE 5000
 
-EXPOSE 3000
+# Set environment variables (optional)
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=127.0.0.1
 
-# Start the app using serve command
-CMD [ "serve", "-s", "build" ]
+# Run the Flask app
+CMD ["flask", "run"]
