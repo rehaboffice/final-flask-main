@@ -5,13 +5,16 @@ import os
 from models import db
 from routes import auth_bp, admin_bp, employee_bp, manager_bp
 from flask_jwt_extended import JWTManager
+from flask_sqlalchemy import SQLAlchemy
 
 # Import the register_routes function
 # from routes import register_routes
 
+
+
 def create_app():
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres123@host.docker.internal:5432/employee_management')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres123@db:5432/employee_management')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_secret_key')  # Change in production
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # Session timeout after 30 minutes
@@ -59,4 +62,5 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
+
     app.run(debug=False)

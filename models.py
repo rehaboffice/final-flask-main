@@ -5,6 +5,7 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+#could add timestampMixin for automatic timestamping of created_at and updated_at fields
 class User(db.Model, UserMixin):
     """User model for authentication and role management"""
     id = db.Column(db.Integer, primary_key=True)
