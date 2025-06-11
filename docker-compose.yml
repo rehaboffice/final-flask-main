@@ -20,6 +20,9 @@ services:
       - db
     environment:
       DATABASE_URL: postgresql://postgres:postgres123@db:5432/employee_management
+    volumes:
+      - static_data:/app/static  # Mount a volume for static files
 
 volumes:
   pgdata:
+  static_data:
